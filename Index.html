@@ -1,0 +1,132 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCC Exam — VINOXE</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0b1020;color:#eef2ff;font-family:Arial,sans-serif}
+main{max-width:480px;margin:45px auto;padding:22px}
+.card{background:#151d30;border:1px solid #293650;border-radius:18px;padding:24px}
+h1{color:#a78bfa;margin-bottom:8px}
+p{color:#aab5cc;line-height:1.5}
+input,button{width:100%;padding:14px;margin-top:12px;border-radius:10px;font-size:16px}
+input{background:#0b1020;color:white;border:1px solid #34415e}
+button{background:#8b5cf6;color:white;border:0;font-weight:bold}
+button:disabled{opacity:.5}
+.small{font-size:12px;text-align:center}
+#status{white-space:pre-wrap}
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <p>VINOXE • TITAR COMPUTER CLUB</p>
+    <h1>TCC EXAM</h1>
+    <p>Portal ujian online</p>
+
+    <form id="login">
+      <label>Email peserta / developer</label>
+      <input id="email" type="email" autocomplete="username" required placeholder="Email akun">
+      <label>Kata sandi</label>
+      <input id="password" type="password" autocomplete="current-password" required placeholder="Kata sandi">
+      <button id="loginBtn" type="submit">Masuk</button>
+    </form>
+
+    <div id="dashboard" hidden>
+      <p id="identity"></p>
+      <p id="examStatus">Memeriksa status ujian...</p>
+      <button id="logout">Keluar dari akun</button>
+    </div>
+
+    <p id="status" role="status">Silakan masuk menggunakan akun yang terdaftar.</p>
+    <p class="small">Sistem ujian TCC • Online</p>
+  </div>
+</main>
+
+<script type="module">
+import { createClient } from
+'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+// Ganti dengan Project URL dan publishable/anon key Supabase.
+const SUPABASE_URL = 'ISI_PROJECT_URL';
+const SUPABASE_KEY = 'ISI_PUBLISHABLE_KEY';
+
+const statusEl = document.querySelector('#status');
+const loginForm = document.querySelector('#login');
+const dashboard = document.querySelector('#dashboard');
+const loginBtn = document.querySelector('#loginBtn');
+
+let supabase = null;
+
+if (SUPABASE_URL.startsWith('https://') &&
+    SUPABASE_KEY !== 'ISI_PUBLISHABLE_KEY') {
+  supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+} else {
+  statusEl.textContent =
+    'Website siap. Konfigurasi Supabase belum diisi.';
+}
+
+loginForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!supabase) {
+    statusEl.textContent =
+      'Isi Project URL dan publishable key Supabase terlebih dahulu.';
+    return;
+  }
+
+  loginBtn.disabled = true;
+  statusEl.textContent = 'Memeriksa akun...';
+
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: document.querySelector('#email').value.trim(),
+      password: document.querySelector('#password').value
+    });
+    if (error) throw error;
+
+    loginForm.hidden = true;
+    dashboard.hidden = false;
+    document.querySelector('#identity').textContent =
+      'Login sebagai: ' + data.user.email;
+
+    statusEl.textContent = 'Login berhasil.';
+    await checkExam();
+  } catch (error) {
+    statusEl.textContent = 'Login gagal: ' + error.message;
+  } finally {
+    loginBtn.disabled = false;
+  }
+});
+
+async function checkExam() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role, display_name')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (error || !data) {
+    document.querySelector('#examStatus').textContent =
+      'Profil belum tersedia. Hubungi developer.';
+    return;
+  }
+
+  document.querySelector('#examStatus').textContent =
+    'Peran akun: ' + data.role +
+    '\nNama: ' + (data.display_name || user.email) +
+    '\nStatus: menunggu sesi ujian dari server.';
+}
+
+document.querySelector('#logout').addEventListener('click', async () => {
+  if (supabase) await supabase.auth.signOut();
+  location.reload();
+});
+</script>
+</body>
+</html>
